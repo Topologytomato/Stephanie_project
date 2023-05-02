@@ -127,6 +127,8 @@ for (i in 1:1000){
 
 
 DELIVERY
+
+# Q1: Overall view of Student judge
 ```{r}
 summary(model1)
 lrtest(model1, model0)
