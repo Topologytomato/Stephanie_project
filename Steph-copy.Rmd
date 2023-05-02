@@ -1,0 +1,164 @@
+---
+title: "anova"
+author: "Team3"
+date: "2023-05-02"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,message=FALSE,fig.align="center",fig.width=7,fig.height=2.5)
+pacman::p_load(
+       car
+      , ggplot2
+      , ggExtra
+      , readxl
+      , reshape2
+      , corrplot
+      , dplyr
+      , car
+      , ggpubr
+      , lmtest
+      ,MASS
+      )
+```
+
+data input
+```{r}
+
+hs1 <- read_excel("individual tournament (coded and not coded) survey data.xlsx", sheet = 6)
+hs2 <- read_excel("individual tournament (coded and not coded) survey data.xlsx", sheet = 8)
+ms1 <- read_excel("individual tournament (coded and not coded) survey data.xlsx", sheet = 9)
+ms2 <- read_excel("individual tournament (coded and not coded) survey data.xlsx", sheet = 10)
+hs1 <- hs1[-1,]
+hs1 <- hs1 %>% dplyr::select(`7.`)
+hs2 <- hs2 %>% dplyr::select(`Do you like being judged by college students? Why or why not? - Selected Choice`)
+ms1 <- ms1 %>% dplyr::select(`Do you like being judged by college students? Why or why not? - Selected Choice`)
+ms2 <- ms2 %>% dplyr::select(`Do you like being judged by college students? Why or why not? - Selected Choice`)
+colnames(hs1) <- c("rating")
+colnames(hs2) <- c("rating")
+colnames(ms1) <- c("rating")
+colnames(ms2) <- c("rating")
+hs1$grades <- "HighSchool"
+hs2$grades <- "HighSchool"
+ms1$grades <- "MiddleSchool"
+ms2$grades <- "MiddleSchool"
+ms1$rating <- as.character(ms1$rating)
+ms2$rating <- as.character(as.numeric(ms2$rating))
+data <- rbind(hs1,hs2,ms1,ms2)
+data$rating[is.na(data$rating)] <- "0"
+data$rating[data$rating=="0" |data$rating=="2"] <- 0
+data$rating[data$rating=="1"] <- 1
+data$rating <-  as.numeric(data$rating)
+
+data.p <- rbind(hs1,hs2,ms1,ms2)
+data.p$rating[is.na(data$rating)] <- "0"
+
+data.p$p <- 0
+data.p$np <- 0
+data.p$p[data.p$rating=='1'] <- 1
+data.p$np[data.p$rating=='2'] <- 1
+data.p <- data.p %>% mutate(dif = p-np)
+
+# add code to reorder the data
+data.p$re_order <- 0
+data.p[which(data.p$rating=="0"),"re_order"] <- 1
+data.p[which(data.p$rating=="1"),"re_order"] <- 2
+data.p[which(data.p$rating=="2"),"re_order"] <- 0
+```
+
+
+```{r}
+hist(data.p$re_order)
+```
+
+test on dif
+```{r}
+t.test(data.p$dif~1)
+```
+
+
+anova
+```{r}
+model1 <- glm(rating ~ grades, family = "binomial", data = data)
+
+summary(model1)
+model0 <- glm(rating~ 1, family = "binomial", data = data)
+lrtest(model1, model0)
+
+res1 <- resid(model1)
+plot(fitted(model1), res1)
+abline(0,0)
+qqnorm(res1)
+#judge.aov <- anova(glm(rating ~ grades, family = "binomial", data = data), test = "F")
+#judge.aov
+```
+
+
+ordinal logit
+```{r}
+#data.p$dif=data.p$dif-2
+Y<-factor(data.p$dif,ordered=TRUE)
+model_ordinal<-polr(Y~1,data=data.p,method="probit")
+summary(model_ordinal)
+```
+```{r}
+ind<-sample(nrow(data.p),100,replace=TRUE)
+new_data<-data.p[ind,]
+y<-factor(new_data$dif,ordered=TRUE)
+fit<-polr(y~1,method="probit")
+```
+
+
+```{r}
+set.seed(407)
+intercept1<-rep(NA,1000)
+for (i in 1:1000){
+  Y<-sample(data.p$dif,200,replace=TRUE)
+  Y<-factor(Y,ordered=TRUE)
+  fit<-polr(Y~1,data=data.p,method="probit")
+  a<-summary(fit)$coefficients[1,1]
+  b<-summary(fit)$coefficients[2,1]
+  c<-pnorm(a)
+  d<-pnorm(b)
+  e<-log((1-d)/c)
+  intercept1<-append(intercept1,e)
+}
+```
+
+
+DELIVERY
+```{r}
+summary(model1)
+lrtest(model1, model0)
+t.test(data.p$dif~1)
+```
+
+
+```{r}
+hist(intercept1,main="Log ratio of perfer a student judgers rather than not a student judgers",xlab="log ratio",ylab="Frequency")
+abline(v=quantile(intercept1, 0.95,na.rm=TRUE), col="red", lwd=2)
+abline(v=quantile(intercept1, 0.05,na.rm=TRUE), col="red", lwd=2)
+```
+
+
+# Q2: Middle school/high school
+```{r}
+set.seed(407)
+grade.coef<-rep(NA,1000)
+for (i in 1:1000){
+  Y = data.p[sample(nrow(data.p),200,replace=TRUE),]
+  # change the code here
+  Y$re_order <- factor(Y$re_order,ordered=TRUE)
+  fit<-polr(re_order ~ grades,data=Y,method="logistic")
+  grade.coef = c(grade.coef,coef(fit))
+}
+
+
+```
+
+```{r}
+hist(grade.coef)
+abline(v=quantile(grade.coef, 0.95,na.rm=TRUE), col="red", lwd=2)
+abline(v=quantile(grade.coef, 0.05,na.rm=TRUE), col="red", lwd=2)
+```
+
